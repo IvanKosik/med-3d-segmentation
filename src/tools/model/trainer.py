@@ -155,17 +155,16 @@ def predict():
             image_id += 1
 
 
-def generate_train_valid_csv():
+def generate_train_valid_csv(all_series_path: Path, masks_path: Path, train_part: float = 0.75):
     data_file_names = []
-    for series_path in SERIES_PATH.iterdir():
-        mask_path = MASKS_PATH / series_path.name
+    for series_path in all_series_path.iterdir():
+        mask_path = masks_path / series_path.name
         if mask_path.exists():
             data_file_names.append(series_path.name)
         else:
             print('WARNING: no mask', mask_path)
 
-    TRAIN_PART = 0.75
-    train_file_names = random.sample(data_file_names, int(TRAIN_PART * len(data_file_names)))
+    train_file_names = random.sample(data_file_names, int(train_part * len(data_file_names)))
     valid_file_names = [file_name for file_name in data_file_names if file_name not in train_file_names]
 
     COLUMNS = ['file_names']
@@ -177,7 +176,7 @@ def generate_train_valid_csv():
 
 
 def main():
-    # generate_train_valid_csv()
+    # generate_train_valid_csv(SERIES_PATH, MASKS_PATH)
     train()
     # predict()
 
