@@ -4,6 +4,7 @@ from pathlib import Path
 
 import albumentations
 import cv2
+import keras
 import keras.models
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ import segmentation_models.metrics
 import segmentation_models.utils
 import skimage.io
 import skimage.transform
-from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau###, TensorBoard
 from segmentation_models import Unet, get_preprocessing
 from segmentation_models import losses as sm_losses
 
@@ -20,7 +21,8 @@ from utils import nifti
 
 
 PROJECT_PATH = Path('../../../')
-DATA_PATH = PROJECT_PATH / 'data/ms-lesions/'
+### DATA_PATH = PROJECT_PATH / 'data/ms-lesions/'
+DATA_PATH = Path(r'C:\MyDiskBackup\Data\ms-lesions')
 SERIES_PATH = DATA_PATH / 'series'
 MASKS_PATH = DATA_PATH / 'masks'
 
@@ -98,16 +100,16 @@ def train():
                                encoder_weights='imagenet', encoder_freeze=True)
 
     dice_score = segmentation_models.metrics.f1_score   #####%! dice_score
-    dice_score.__name__ = 'dice_score'
+###    dice_score.__name__ = 'dice_score'
     model.compile('Adam', loss=LOSS, metrics=[dice_score, segmentation_models.metrics.iou_score])
     model.summary()
 
     checkpoint = ModelCheckpoint(str(MODEL_PATH), monitor='val_loss', verbose=1, save_best_only=True, mode='min')
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=10, verbose=1, min_lr=1e-6)
     early_stopping = EarlyStopping(monitor="val_loss", patience=60, mode="min")
-    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(MODELS_DIR / 'logs' / PARAMS_STR), write_graph=False)
+###    tensorboard_callback = TensorBoard(log_dir=str(MODELS_DIR / 'logs' / PARAMS_STR), write_graph=False)
 
-    callbacks = [checkpoint, reduce_lr, early_stopping, tensorboard_callback]
+    callbacks = [checkpoint, reduce_lr, early_stopping]###, tensorboard_callback]
 
     model.fit_generator(generator=train_gen,
                         epochs=100,

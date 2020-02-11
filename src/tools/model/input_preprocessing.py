@@ -25,7 +25,7 @@ class InputPreprocessor:
         self.backbone_input_preprocessing = backbone_input_preprocessing
 
     def preprocess_image(self, image, is_mask: bool = False, axis_pads: tuple = None):
-        debug.print_info(image, 'original')
+        ### debug.print_info(image, 'original')
 
         if axis_pads is None:
             # Add zero-paddings to make square image (original image will be in the center of paddings)
@@ -36,19 +36,19 @@ class InputPreprocessor:
             axis_after_pads = pad_sizes - axis_before_pads
 
             axis_pads = tuple(zip(axis_before_pads, axis_after_pads))
-            print('axis pads:', axis_pads)
+            ### print('axis pads:', axis_pads)
 
         image = np.pad(image, axis_pads, mode='constant')
-        debug.print_info(image, 'padded')
+        ### debug.print_info(image, 'padded')
 
         image = skimage.transform.resize(image, self.image_input_size, order=3, anti_aliasing=True)  # preserve_range=True)
-        debug.print_info(image, 'scaled')
+        ### debug.print_info(image, 'scaled')
 
         # Normalize to [0, 1]
         if not is_mask:
             image = normalized_image(image)
 
-        debug.print_info(image, 'normalized')
+        ### debug.print_info(image, 'normalized')
 
         return image, axis_pads
 
