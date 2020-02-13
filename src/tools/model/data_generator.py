@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 from keras.utils import Sequence
 
-from utils import nifti, debug
 from utils import image as image_utils
+from utils import nifti, debug
 
 
 class DataGenerator(Sequence):
@@ -22,15 +22,13 @@ class DataGenerator(Sequence):
         self.series_path = data_path / 'series'
         self.masks_path = data_path / 'masks'
 
-##        series_3d = []
-##        masks_3d = []
         self.images = []
         self.masks = []
         self.samples_amount = 0
 
         data_csv = pd.read_csv(str(data_csv_path))
 
-        # load all nifti series
+        # Read all images/masks into memory to speed up training
         number_of_data_csv_rows = len(data_csv)
         for index, train_csv_row in enumerate(data_csv.values):
             nifti_name = train_csv_row[0]
@@ -38,13 +36,9 @@ class DataGenerator(Sequence):
 
             nifti_series_path = self.series_path / nifti_name
             series = nifti.read_image(nifti_series_path)
-##            series_3d.append(series)
-##            self.samples_amount += series.shape[2]
 
             mask = nifti.read_image(self.masks_path / nifti_name)
             mask[mask != 1] = 0                                       ################# FOR 1 CLASS
-
-##            masks_3d.append(mask)
 
             for slice_number in range(series.shape[2]):
                 series_slice = series[..., slice_number]
@@ -54,9 +48,6 @@ class DataGenerator(Sequence):
                 self.images.append(preprocessed_image)
                 self.masks.append(preprocessed_mask)
 
-##        print('series_3d len:', len(series_3d))
-##        print('masks_3d len:', len(masks_3d))
-
         self.samples_amount = len(self.images)
 
         self.images = np.array(self.images, dtype=np.float32)
@@ -64,26 +55,6 @@ class DataGenerator(Sequence):
 
         debug.print_info(self.images, 'images')
         debug.print_info(self.masks, 'masks')
-
-##        self.images = np.zeros(shape=(self.samples_amount, *self.input_preprocessor.image_input_size), dtype=np.float32)
-##        self.masks = np.zeros_like(self.images)
-
-        '''
-        # Read all images/masks into memory to speed up training
-        slice_index = 0
-        for index_3d in range(len(series_3d)):
-            series = series_3d[index_3d]
-            mask = masks_3d[index_3d]
-
-            for slice_number in range(series.shape[2]):
-                series_slice = series[..., slice_number]
-                mask_slice = mask[..., slice_number]
-                preprocessed_image, preprocessed_mask = self.input_preprocessor.preprocess_image_mask(
-                    series_slice, mask_slice)
-                self.images[slice_index, ...] = preprocessed_image
-                self.masks[slice_index, ...] = preprocessed_mask
-                slice_index += 1
-        '''
 
         self.sample_indexes = np.arange(self.samples_amount)
         self.on_epoch_end()

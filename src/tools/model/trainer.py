@@ -22,7 +22,7 @@ from utils import image as image_utils
 
 
 PROJECT_DIR = Path('../../../')
-### DATA_PATH = PROJECT_PATH / 'data/ms-lesions/'
+### DATA_DIR = PROJECT_PATH / 'data/ms-lesions/'
 DATA_DIR = Path(r'C:\MyDiskBackup\Data\brain')
 SERIES_DIR = DATA_DIR / 'series'
 MASKS_DIR = DATA_DIR / 'masks'
