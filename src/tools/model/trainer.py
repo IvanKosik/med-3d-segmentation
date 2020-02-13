@@ -2,8 +2,6 @@ import random
 from datetime import datetime
 from pathlib import Path
 
-import albumentations
-import cv2
 import keras
 import keras.models
 import numpy as np
@@ -12,59 +10,29 @@ import segmentation_models.metrics
 import segmentation_models.utils
 import skimage.io
 import skimage.transform
-from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau###, TensorBoard
-from segmentation_models import Unet, get_preprocessing
-from segmentation_models import losses as sm_losses
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau  ###, TensorBoard
+from segmentation_models import get_preprocessing
 
-from tools.model import data_generator, input_preprocessing
-from utils import nifti
+from tools.model import data_generator, input_preprocessing, configs
 from utils import image as image_utils
+from utils import nifti
 
 
-PROJECT_DIR = Path('../../../')
-### DATA_DIR = PROJECT_PATH / 'data/ms-lesions/'
-DATA_DIR = Path(r'C:\MyDiskBackup\Data\brain')
-SERIES_DIR = DATA_DIR / 'series'
-MASKS_DIR = DATA_DIR / 'masks'
-
-DATA_CSV_DIR = PROJECT_DIR / 'data' / 'brain' / 'csv' / 'all'
-TRAIN_DATA_CSV_PATH = DATA_CSV_DIR / 'train.csv'
-VALID_DATA_CSV_PATH = DATA_CSV_DIR / 'valid.csv'
-
-MODEL_ARCHITECTURE = Unet
-BACKBONE = 'densenet201'
-LOSS = sm_losses.bce_dice_loss
-INPUT_SIZE = (256, 256)
-BATCH_SIZE = 17
-SMALL_DESCRIPTION = ''
-
-BACKBONE_INPUT_PREPROCESSING = get_preprocessing(BACKBONE)
-
-INPUT_CHANNELS = 3
-CLASSES_NUMBER = 1
-
-AUGMENTATIONS = albumentations.Compose(transforms=[
-    albumentations.ShiftScaleRotate(
-        border_mode=cv2.BORDER_CONSTANT, rotate_limit=20, shift_limit=0.2, scale_limit=0.2, p=1),
-    albumentations.HorizontalFlip(p=0.5),
-    albumentations.VerticalFlip(p=0.5),
-    # RandomBrightnessContrast(brightness_limit=0.25, contrast_limit=0.25, p=1),
-    # RandomGamma(p=1)  # (gamma_limit=(50, 150), p=1)
-    ])
+BACKBONE_INPUT_PREPROCESSING = get_preprocessing(configs.BACKBONE)
 
 INPUT_PREPROCESSOR = input_preprocessing.InputPreprocessor(
-    INPUT_SIZE, INPUT_CHANNELS, CLASSES_NUMBER, AUGMENTATIONS, BACKBONE_INPUT_PREPROCESSING)
+    configs.INPUT_SIZE, configs.INPUT_CHANNELS, configs.CLASSES_NUMBER,
+    configs.AUGMENTATIONS, BACKBONE_INPUT_PREPROCESSING)
 
 DATE = datetime.now().strftime("%Y.%m.%d")
-PARAMS_STR = f'{DATE}-Class{CLASSES_NUMBER}-{MODEL_ARCHITECTURE.__name__}-{BACKBONE}-{LOSS.__name__}-{INPUT_SIZE[0]}x{INPUT_SIZE[1]}-Batch{BATCH_SIZE}'
-if SMALL_DESCRIPTION:
-    PARAMS_STR += '-' + SMALL_DESCRIPTION
+PARAMS_STR = f'{DATE}-Class{configs.CLASSES_NUMBER}-{configs.MODEL_ARCHITECTURE.__name__}' \
+             f'-{configs.BACKBONE}-{configs.LOSS.__name__}-{configs.INPUT_SIZE[0]}x{configs.INPUT_SIZE[1]}' \
+             f'-Batch{configs.BATCH_SIZE}'
+if configs.SMALL_DESCRIPTION:
+    PARAMS_STR += '-' + configs.SMALL_DESCRIPTION
 MODEL_NAME = PARAMS_STR + '.h5'
 
-OUTPUT_DIR = PROJECT_DIR / 'output'
-MODELS_DIR = OUTPUT_DIR / 'models'
-MODEL_PATH = MODELS_DIR / MODEL_NAME
-PREDICTIONS_DIR = OUTPUT_DIR / 'predictions'
+MODEL_PATH = configs.MODELS_DIR / MODEL_NAME
 
 
 def central_image_mask_slices(series_path):
@@ -87,10 +55,10 @@ def preprocessing_test(series_path: Path):
 
 
 def train():
-    train_gen = data_generator.DataGenerator(
-        INPUT_PREPROCESSOR, DATA_DIR, TRAIN_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=True)
-    valid_gen = data_generator.DataGenerator(
-        INPUT_PREPROCESSOR, DATA_DIR, VALID_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=False)
+    train_gen = data_generator.DataGenerator(INPUT_PREPROCESSOR, configs.DATA_DIR, configs.TRAIN_DATA_CSV_PATH,
+                                             batch_size=configs.BATCH_SIZE, is_train=True)
+    valid_gen = data_generator.DataGenerator(INPUT_PREPROCESSOR, configs.DATA_DIR, configs.VALID_DATA_CSV_PATH,
+                                             batch_size=configs.BATCH_SIZE, is_train=False)
 
     # test
     '''
@@ -100,12 +68,12 @@ def train():
     print('train_batch', train_series_batch.shape, train_masks_batch.shape)
     '''
 
-    model = MODEL_ARCHITECTURE(backbone_name=BACKBONE, input_shape=(None, None, 3), classes=CLASSES_NUMBER,
-                               encoder_weights='imagenet', encoder_freeze=True)
+    model = configs.MODEL_ARCHITECTURE(backbone_name=configs.BACKBONE, input_shape=(None, None, 3),
+                                       classes=configs.CLASSES_NUMBER, encoder_weights='imagenet', encoder_freeze=True)
 
     dice_score = segmentation_models.metrics.f1_score   #####%! dice_score
 ###    dice_score.__name__ = 'dice_score'
-    model.compile('Adam', loss=LOSS, metrics=[dice_score, segmentation_models.metrics.iou_score])
+    model.compile('Adam', loss=configs.LOSS, metrics=[dice_score, segmentation_models.metrics.iou_score])
     model.summary()
 
     checkpoint = ModelCheckpoint(str(MODEL_PATH), monitor='val_loss', verbose=1, save_best_only=True, mode='min')
@@ -122,15 +90,15 @@ def train():
 
 
 def predict(model_path: Path = MODEL_PATH, number_of_batches_for_prediction: int = 2):
-    test_gen = data_generator.DataGenerator(
-        INPUT_PREPROCESSOR, DATA_DIR, VALID_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=False)
+    test_gen = data_generator.DataGenerator(INPUT_PREPROCESSOR, configs.DATA_DIR, configs.VALID_DATA_CSV_PATH,
+                                            batch_size=configs.BATCH_SIZE, is_train=False)
 
     model = keras.models.load_model(str(model_path), compile=False)
 
-    save_dir = PREDICTIONS_DIR
-    IMAGES_SAVE_DIR = save_dir / 'images'
-    MASKS_SAVE_DIR = save_dir / 'masks'
-    PREDICTED_MASKS_SAVE_DIR = save_dir / 'predictions'
+    SAVE_DIR = configs.PREDICTIONS_DIR
+    IMAGES_SAVE_DIR = SAVE_DIR / 'images'
+    MASKS_SAVE_DIR = SAVE_DIR / 'masks'
+    PREDICTED_MASKS_SAVE_DIR = SAVE_DIR / 'predictions'
 
     # Select random unique batches
     total_number_of_batches = len(test_gen)
@@ -176,16 +144,16 @@ def generate_train_valid_csv(all_series_path: Path, masks_path: Path, train_part
 
     COLUMNS = ['file_names']
     train_data_frame = pd.DataFrame(data=train_file_names, columns=COLUMNS)
-    train_data_frame.to_csv(str(TRAIN_DATA_CSV_PATH), index=False)
+    train_data_frame.to_csv(str(configs.TRAIN_DATA_CSV_PATH), index=False)
 
     valid_data_frame = pd.DataFrame(data=valid_file_names, columns=COLUMNS)
-    valid_data_frame.to_csv(str(VALID_DATA_CSV_PATH), index=False)
+    valid_data_frame.to_csv(str(configs.VALID_DATA_CSV_PATH), index=False)
 
 
 def main():
     # generate_train_valid_csv(SERIES_PATH, MASKS_PATH)
-    # train()
-    predict(MODELS_DIR / '2020.02.11-Class1-Unet-densenet201-binary_crossentropy_plus_dice_loss-256x256-Batch17.h5')
+    train()
+    # predict(configs.MODELS_DIR / '2020.02.11-Class1-Unet-densenet201-binary_crossentropy_plus_dice_loss-256x256-Batch17.h5')
 
 
 if __name__ == '__main__':
