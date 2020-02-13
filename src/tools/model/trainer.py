@@ -18,16 +18,18 @@ from segmentation_models import losses as sm_losses
 
 from tools.model import data_generator, input_preprocessing
 from utils import nifti
+from utils import image as image_utils
 
 
-PROJECT_PATH = Path('../../../')
+PROJECT_DIR = Path('../../../')
 ### DATA_PATH = PROJECT_PATH / 'data/ms-lesions/'
-DATA_PATH = Path(r'C:\MyDiskBackup\Data\ms-lesions')
-SERIES_PATH = DATA_PATH / 'series'
-MASKS_PATH = DATA_PATH / 'masks'
+DATA_DIR = Path(r'C:\MyDiskBackup\Data\brain')
+SERIES_DIR = DATA_DIR / 'series'
+MASKS_DIR = DATA_DIR / 'masks'
 
-TRAIN_DATA_CSV_PATH = Path('train.csv')
-VALID_DATA_CSV_PATH = Path('valid.csv')
+DATA_CSV_DIR = PROJECT_DIR / 'data' / 'brain' / 'csv' / 'all'
+TRAIN_DATA_CSV_PATH = DATA_CSV_DIR / 'train.csv'
+VALID_DATA_CSV_PATH = DATA_CSV_DIR / 'valid.csv'
 
 MODEL_ARCHITECTURE = Unet
 BACKBONE = 'densenet201'
@@ -59,8 +61,10 @@ if SMALL_DESCRIPTION:
     PARAMS_STR += '-' + SMALL_DESCRIPTION
 MODEL_NAME = PARAMS_STR + '.h5'
 
-MODELS_DIR = PROJECT_PATH / 'output/models'
+OUTPUT_DIR = PROJECT_DIR / 'output'
+MODELS_DIR = OUTPUT_DIR / 'models'
 MODEL_PATH = MODELS_DIR / MODEL_NAME
+PREDICTIONS_DIR = OUTPUT_DIR / 'predictions'
 
 
 def central_image_mask_slices(series_path):
@@ -84,9 +88,9 @@ def preprocessing_test(series_path: Path):
 
 def train():
     train_gen = data_generator.DataGenerator(
-        INPUT_PREPROCESSOR, DATA_PATH, TRAIN_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=True)
+        INPUT_PREPROCESSOR, DATA_DIR, TRAIN_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=True)
     valid_gen = data_generator.DataGenerator(
-        INPUT_PREPROCESSOR, DATA_PATH, VALID_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=False)
+        INPUT_PREPROCESSOR, DATA_DIR, VALID_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=False)
 
     # test
     '''
@@ -117,18 +121,24 @@ def train():
                         validation_data=valid_gen)
 
 
-def predict():
-    test_gen = data_generator.DataGenerator(DATA_PATH, VALID_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=False)
+def predict(model_path: Path = MODEL_PATH, number_of_batches_for_prediction: int = 2):
+    test_gen = data_generator.DataGenerator(
+        INPUT_PREPROCESSOR, DATA_DIR, VALID_DATA_CSV_PATH, batch_size=BATCH_SIZE, is_train=False)
 
-    model = keras.models.load_model(str(MODEL_PATH), compile=False)
+    model = keras.models.load_model(str(model_path), compile=False)
 
-    SAVE_PATH = Path('../../Temp/Predicted')
-    IMAGES_SAVE_PATH = SAVE_PATH / 'Images'
-    MASKS_SAVE_PATH = SAVE_PATH / 'Masks'
-    PREDICTED_MASKS_SAVE_PATH = SAVE_PATH / 'PredictedMasks'
+    save_dir = PREDICTIONS_DIR
+    IMAGES_SAVE_DIR = save_dir / 'images'
+    MASKS_SAVE_DIR = save_dir / 'masks'
+    PREDICTED_MASKS_SAVE_DIR = save_dir / 'predictions'
+
+    # Select random unique batches
+    total_number_of_batches = len(test_gen)
+    number_of_batches_for_prediction = min(number_of_batches_for_prediction, total_number_of_batches)
+    random_batch_indexes = random.sample(range(total_number_of_batches), number_of_batches_for_prediction)
 
     image_id = 0
-    for batch_index in range(len(test_gen)):
+    for batch_index in random_batch_indexes:
         batch = test_gen.__getitem__(batch_index)
         series_batch, masks_batch = batch
 
@@ -140,17 +150,14 @@ def predict():
             mask = masks_batch[batch_image_index]
             predicted_mask = predicted_batch[batch_image_index]
 
-            # image = image * 255
-            image = image - image.min()
-            if image.max() != 0:
-                image = image / image.max()
+            image = image_utils.normalized_image(image)
 
             mask = np.stack((np.squeeze(mask),) * 3, axis=-1)
             predicted_mask = np.stack((np.squeeze(predicted_mask),) * 3, axis=-1)
 
-            skimage.io.imsave(str(IMAGES_SAVE_PATH / f'{image_id}.png'), image)
-            skimage.io.imsave(str(MASKS_SAVE_PATH / f'{image_id}.png'), mask)
-            skimage.io.imsave(str(PREDICTED_MASKS_SAVE_PATH / f'{image_id}.png'), predicted_mask)
+            skimage.io.imsave(str(IMAGES_SAVE_DIR / f'{image_id}.png'), image)
+            skimage.io.imsave(str(MASKS_SAVE_DIR / f'{image_id}.png'), mask)
+            skimage.io.imsave(str(PREDICTED_MASKS_SAVE_DIR / f'{image_id}.png'), predicted_mask)
 
             image_id += 1
 
@@ -177,8 +184,8 @@ def generate_train_valid_csv(all_series_path: Path, masks_path: Path, train_part
 
 def main():
     # generate_train_valid_csv(SERIES_PATH, MASKS_PATH)
-    train()
-    # predict()
+    # train()
+    predict(MODELS_DIR / '2020.02.11-Class1-Unet-densenet201-binary_crossentropy_plus_dice_loss-256x256-Batch17.h5')
 
 
 if __name__ == '__main__':

@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 from keras.utils import Sequence
 
-from tools.model import input_preprocessing
 from utils import nifti, debug
+from utils import image as image_utils
 
 
 class DataGenerator(Sequence):
@@ -112,7 +112,7 @@ class DataGenerator(Sequence):
                 image, mask = self.input_preprocessor.augmentate_image_mask(image, mask)
 
                 # Normalize once again image to [0, 1] after augmentation
-                image = input_preprocessing.normalized_image(image)
+                image = image_utils.normalized_image(image)
 
             image = image * 255
             image = np.stack((image,) * self.input_preprocessor.image_input_channels, axis=-1)

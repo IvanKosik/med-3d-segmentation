@@ -2,17 +2,8 @@ import numpy as np
 import skimage.io
 import skimage.transform
 
+from utils import image as image_utils
 from utils import debug
-
-
-def normalized_image(image):
-    image_min = image.min()
-    if image_min != 0:
-        image = image - image_min
-    image_max = image.max()
-    if image_max != 0 and image_max != 1:
-        image = image / image_max
-    return image
 
 
 class InputPreprocessor:
@@ -46,7 +37,7 @@ class InputPreprocessor:
 
         # Normalize to [0, 1]
         if not is_mask:
-            image = normalized_image(image)
+            image = image_utils.normalized_image(image)
 
         ### debug.print_info(image, 'normalized')
 
