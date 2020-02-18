@@ -38,3 +38,4 @@ AUGMENTATIONS = albumentations.Compose(transforms=[
 OUTPUT_DIR = PROJECT_DIR / 'output'
 MODELS_DIR = OUTPUT_DIR / 'models'
 PREDICTIONS_DIR = OUTPUT_DIR / 'predictions'
+GENERATOR_TEST_DIR = OUTPUT_DIR / 'generator-test'

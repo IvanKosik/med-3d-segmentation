@@ -89,16 +89,19 @@ def train():
                         validation_data=valid_gen)
 
 
-def predict(model_path: Path = MODEL_PATH, number_of_batches_for_prediction: int = 2):
+def test_data_generator_with_prediction(model_path: Path = Path(), number_of_batches_for_prediction: int = 2,
+                                        save_dir: Path = configs.PREDICTIONS_DIR):
+    # If |model_path| defined, then we have to do a prediction, so use false for |is_train|, to disable augmentations
+    is_train = not model_path.is_file()
+
     test_gen = data_generator.DataGenerator(INPUT_PREPROCESSOR, configs.DATA_DIR, configs.VALID_DATA_CSV_PATH,
-                                            batch_size=configs.BATCH_SIZE, is_train=False)
+                                            batch_size=configs.BATCH_SIZE, is_train=is_train)
 
-    model = keras.models.load_model(str(model_path), compile=False)
+    model = keras.models.load_model(str(model_path), compile=False) if model_path.is_file() else None
 
-    SAVE_DIR = configs.PREDICTIONS_DIR
-    IMAGES_SAVE_DIR = SAVE_DIR / 'images'
-    MASKS_SAVE_DIR = SAVE_DIR / 'masks'
-    PREDICTED_MASKS_SAVE_DIR = SAVE_DIR / 'predictions'
+    IMAGES_SAVE_DIR = save_dir / 'images'
+    MASKS_SAVE_DIR = save_dir / 'masks'
+    PREDICTED_MASKS_SAVE_DIR = save_dir / 'predictions'
 
     # Select random unique batches
     total_number_of_batches = len(test_gen)
@@ -110,22 +113,23 @@ def predict(model_path: Path = MODEL_PATH, number_of_batches_for_prediction: int
         batch = test_gen.__getitem__(batch_index)
         series_batch, masks_batch = batch
 
-        predicted_batch = model.predict(series_batch)
+        predicted_batch = model.predict(series_batch) if model is not None else None
 
         # Save all images in batches
         for batch_image_index in range(series_batch.shape[0]):
             image = series_batch[batch_image_index]
             mask = masks_batch[batch_image_index]
-            predicted_mask = predicted_batch[batch_image_index]
 
             image = image_utils.normalized_image(image)
-
             mask = np.stack((np.squeeze(mask),) * 3, axis=-1)
-            predicted_mask = np.stack((np.squeeze(predicted_mask),) * 3, axis=-1)
 
             skimage.io.imsave(str(IMAGES_SAVE_DIR / f'{image_id}.png'), image)
             skimage.io.imsave(str(MASKS_SAVE_DIR / f'{image_id}.png'), mask)
-            skimage.io.imsave(str(PREDICTED_MASKS_SAVE_DIR / f'{image_id}.png'), predicted_mask)
+
+            if predicted_batch is not None:
+                predicted_mask = predicted_batch[batch_image_index]
+                predicted_mask = np.stack((np.squeeze(predicted_mask),) * 3, axis=-1)
+                skimage.io.imsave(str(PREDICTED_MASKS_SAVE_DIR / f'{image_id}.png'), predicted_mask)
 
             image_id += 1
 
@@ -152,8 +156,15 @@ def generate_train_valid_csv(all_series_path: Path, masks_path: Path, train_part
 
 def main():
     # generate_train_valid_csv(SERIES_PATH, MASKS_PATH)
-    train()
-    # predict(configs.MODELS_DIR / '2020.02.11-Class1-Unet-densenet201-binary_crossentropy_plus_dice_loss-256x256-Batch17.h5')
+
+    # To test only data generator
+    test_data_generator_with_prediction()
+
+    # train()
+
+    # To test data generator and predictions
+    # test_data_generator_with_prediction(
+    #     configs.MODELS_DIR / '2020.02.11-Class1-Unet-densenet201-binary_crossentropy_plus_dice_loss-256x256-Batch17.h5')
 
 
 if __name__ == '__main__':
