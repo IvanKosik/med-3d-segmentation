@@ -1,6 +1,7 @@
 import random
 from datetime import datetime
 from pathlib import Path
+import re
 
 import keras
 import keras.models
@@ -15,7 +16,7 @@ from segmentation_models import get_preprocessing
 
 from tools.model import data_generator, input_preprocessing, configs
 from utils import image as image_utils
-from utils import nifti
+from utils import nifti, debug
 
 
 BACKBONE_INPUT_PREPROCESSING = get_preprocessing(configs.BACKBONE)
@@ -56,9 +57,11 @@ def preprocessing_test(series_path: Path):
 
 def train():
     train_gen = data_generator.DataGenerator(INPUT_PREPROCESSOR, configs.DATA_DIR, configs.TRAIN_DATA_CSV_PATH,
-                                             batch_size=configs.BATCH_SIZE, is_train=True)
+                                             batch_size=configs.BATCH_SIZE, is_train=True,
+                                             skip_slices_with_empty_mask=configs.SKIP_SLICES_WITH_EMPTY_MASK)
     valid_gen = data_generator.DataGenerator(INPUT_PREPROCESSOR, configs.DATA_DIR, configs.VALID_DATA_CSV_PATH,
-                                             batch_size=configs.BATCH_SIZE, is_train=False)
+                                             batch_size=configs.BATCH_SIZE, is_train=False,
+                                             skip_slices_with_empty_mask=configs.SKIP_SLICES_WITH_EMPTY_MASK)
 
     # test
     '''
@@ -89,13 +92,16 @@ def train():
                         validation_data=valid_gen)
 
 
-def test_data_generator_with_prediction(model_path: Path = Path(), number_of_batches_for_prediction: int = 2,
-                                        save_dir: Path = configs.PREDICTIONS_DIR):
+def test_data_generator_with_prediction(model_path: Path = Path(), data_csv_path: Path = configs.VALID_DATA_CSV_PATH,
+                                        number_of_batches_for_prediction: int = 2,
+                                        save_dir: Path = configs.PREDICTIONS_DIR,
+                                        skip_slices_with_empty_mask: bool = False):
     # If |model_path| defined, then we have to do a prediction, so use false for |is_train|, to disable augmentations
     is_train = not model_path.is_file()
 
-    test_gen = data_generator.DataGenerator(INPUT_PREPROCESSOR, configs.DATA_DIR, configs.VALID_DATA_CSV_PATH,
-                                            batch_size=configs.BATCH_SIZE, is_train=is_train)
+    test_gen = data_generator.DataGenerator(INPUT_PREPROCESSOR, configs.DATA_DIR, data_csv_path,
+                                            batch_size=configs.BATCH_SIZE, is_train=is_train,
+                                            skip_slices_with_empty_mask=skip_slices_with_empty_mask)
 
     model = keras.models.load_model(str(model_path), compile=False) if model_path.is_file() else None
 
@@ -134,10 +140,15 @@ def test_data_generator_with_prediction(model_path: Path = Path(), number_of_bat
             image_id += 1
 
 
-def generate_train_valid_csv(all_series_path: Path, masks_path: Path, train_part: float = 0.75):
+def generate_train_valid_csv(all_series_dir: Path, masks_dir: Path,
+                             train_csv_path: Path, valid_csv_path: Path,
+                             filter_predicate=lambda file_name: True, train_part: float = 0.75):
     data_file_names = []
-    for series_path in all_series_path.iterdir():
-        mask_path = masks_path / series_path.name
+    for series_path in all_series_dir.iterdir():
+        if not filter_predicate(series_path.name):
+            continue
+
+        mask_path = masks_dir / series_path.name
         if mask_path.exists():
             data_file_names.append(series_path.name)
         else:
@@ -148,23 +159,26 @@ def generate_train_valid_csv(all_series_path: Path, masks_path: Path, train_part
 
     COLUMNS = ['file_names']
     train_data_frame = pd.DataFrame(data=train_file_names, columns=COLUMNS)
-    train_data_frame.to_csv(str(configs.TRAIN_DATA_CSV_PATH), index=False)
+    train_data_frame.to_csv(str(train_csv_path), index=False)
 
     valid_data_frame = pd.DataFrame(data=valid_file_names, columns=COLUMNS)
-    valid_data_frame.to_csv(str(configs.VALID_DATA_CSV_PATH), index=False)
+    valid_data_frame.to_csv(str(valid_csv_path), index=False)
 
 
 def main():
-    # generate_train_valid_csv(SERIES_PATH, MASKS_PATH)
+    # generate_train_valid_csv(
+    #     configs.SERIES_DIR, configs.MASKS_DIR, configs.TRAIN_DATA_CSV_PATH, configs.VALID_DATA_CSV_PATH)
+        # filter_predicate=lambda file_name: re.search('[ _]t2.*tse', file_name, re.IGNORECASE) is not None)
 
     # To test only data generator
-    test_data_generator_with_prediction()
+    # test_data_generator_with_prediction()
 
-    # train()
+    train()
 
     # To test data generator and predictions
     # test_data_generator_with_prediction(
-    #     configs.MODELS_DIR / '2020.02.11-Class1-Unet-densenet201-binary_crossentropy_plus_dice_loss-256x256-Batch17.h5')
+    #     configs.MODELS_DIR / '2020.02.27-Class1-Unet-densenet201-binary_crossentropy_plus_dice_loss-256x256-Batch17-Air.h5',
+    #     configs.TEST_DATA_CSV_PATH, number_of_batches_for_prediction=5)
 
 
 if __name__ == '__main__':

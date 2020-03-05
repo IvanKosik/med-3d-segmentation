@@ -13,7 +13,8 @@ from utils import nifti, debug
 
 class DataGenerator(Sequence):
     def __init__(self, input_preprocessor: InputPreprocessor,
-                 data_path: Path, data_csv_path: Path, batch_size, is_train):
+                 data_path: Path, data_csv_path: Path, batch_size, is_train,
+                 skip_slices_with_empty_mask: bool):
         self.input_preprocessor = input_preprocessor
         self.batch_size = batch_size
         self.is_train = is_train
@@ -41,8 +42,11 @@ class DataGenerator(Sequence):
             mask[mask != 1] = 0                                       ################# FOR 1 CLASS
 
             for slice_number in range(series.shape[2]):
-                series_slice = series[..., slice_number]
                 mask_slice = mask[..., slice_number]
+                if skip_slices_with_empty_mask and not mask_slice.any():
+                    continue
+
+                series_slice = series[..., slice_number]
                 preprocessed_image, preprocessed_mask = self.input_preprocessor.preprocess_image_mask(
                     series_slice, mask_slice)
                 self.images.append(preprocessed_image)

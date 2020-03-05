@@ -7,24 +7,28 @@ from segmentation_models import losses as sm_losses
 
 
 PROJECT_DIR = Path('../../../')
-### DATA_DIR = PROJECT_PATH / 'data/ms-lesions/'
-DATA_DIR = Path(r'C:\MyDiskBackup\Data\brain')
+OBJECT_NAME = 'ms-lesions'
+### DATA_DIR = PROJECT_DIR / 'data' / OBJECT_NAME
+DATA_DIR = Path(r'C:\MyDiskBackup\Data') / OBJECT_NAME
 SERIES_DIR = DATA_DIR / 'series'
 MASKS_DIR = DATA_DIR / 'masks'
 
-DATA_CSV_DIR = PROJECT_DIR / 'data' / 'brain' / 'csv' / 'all'
+DATA_CSV_DIR = PROJECT_DIR / 'data' / OBJECT_NAME / 'csv' / 't2-tse'
 TRAIN_DATA_CSV_PATH = DATA_CSV_DIR / 'train.csv'
 VALID_DATA_CSV_PATH = DATA_CSV_DIR / 'valid.csv'
+TEST_DATA_CSV_PATH = DATA_CSV_DIR / 'test.csv'
 
 MODEL_ARCHITECTURE = Unet
 BACKBONE = 'densenet201'
 LOSS = sm_losses.bce_dice_loss
 INPUT_SIZE = (256, 256)
 BATCH_SIZE = 17
-SMALL_DESCRIPTION = ''
+SMALL_DESCRIPTION = 'T2_tse_SkipEmptySlices'
 
 INPUT_CHANNELS = 3
 CLASSES_NUMBER = 1
+
+SKIP_SLICES_WITH_EMPTY_MASK = True
 
 AUGMENTATIONS = albumentations.Compose(transforms=[
     albumentations.ShiftScaleRotate(
@@ -36,6 +40,5 @@ AUGMENTATIONS = albumentations.Compose(transforms=[
     ])
 
 OUTPUT_DIR = PROJECT_DIR / 'output'
-MODELS_DIR = OUTPUT_DIR / 'models'
+MODELS_DIR = OUTPUT_DIR / 'models' / OBJECT_NAME
 PREDICTIONS_DIR = OUTPUT_DIR / 'predictions'
-GENERATOR_TEST_DIR = OUTPUT_DIR / 'generator-test'
