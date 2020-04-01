@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import math
+import random
 from pathlib import Path
 
+import keras
 import numpy as np
 import pandas as pd
-from keras.utils import Sequence
 
 from utils import image as image_utils
 from utils import nifti, debug
 
 
-class DataGenerator(Sequence):
+class DataGenerator(keras.utils.Sequence):
     def __init__(self, input_preprocessor: InputPreprocessor,
                  data_path: Path, data_csv_path: Path, batch_size, is_train,
                  skip_slices_with_empty_mask: bool):
@@ -25,6 +26,8 @@ class DataGenerator(Sequence):
 
         self.images = []
         self.masks = []
+        images_with_empty_masks = []
+        empty_masks = []
         self.samples_amount = 0
 
         data_csv = pd.read_csv(str(data_csv_path))
@@ -43,19 +46,38 @@ class DataGenerator(Sequence):
 
             for slice_number in range(series.shape[2]):
                 mask_slice = mask[..., slice_number]
-                if skip_slices_with_empty_mask and not mask_slice.any():
-                    continue
+                # if skip_slices_with_empty_mask and not mask_slice.any():
+                #     continue
 
                 series_slice = series[..., slice_number]
                 preprocessed_image, preprocessed_mask = self.input_preprocessor.preprocess_image_mask(
                     series_slice, mask_slice)
-                self.images.append(preprocessed_image)
-                self.masks.append(preprocessed_mask)
+
+                if mask_slice.any():
+                    self.images.append(preprocessed_image)
+                    self.masks.append(preprocessed_mask)
+                else:
+                    images_with_empty_masks.append(preprocessed_image)
+                    empty_masks.append(preprocessed_mask)
+
+        print(f'Statistics'
+              f'\n\timages with masks: {len(self.images)}'
+              f'\n\timages with empty masks: {len(images_with_empty_masks)}')
+
+        f = 0  ###  0.1
+        selected_number_of_images_with_empty_masks = min(round(f * len(self.images)), len(images_with_empty_masks))
+        if selected_number_of_images_with_empty_masks > 0:
+            random.seed(999)  # use the same images every time to easier compare different models (train on the same images)
+            images_with_empty_masks, empty_masks = zip(*random.sample(list(zip(images_with_empty_masks, empty_masks)),
+                                                                      selected_number_of_images_with_empty_masks))
+        else:
+            images_with_empty_masks = []
+            empty_masks = []
+
+        self.images = np.array(self.images + list(images_with_empty_masks), dtype=np.float32)
+        self.masks = np.array(self.masks + list(empty_masks), dtype=np.float32)
 
         self.samples_amount = len(self.images)
-
-        self.images = np.array(self.images, dtype=np.float32)
-        self.masks = np.array(self.masks, dtype=np.float32)
 
         debug.print_info(self.images, 'images')
         debug.print_info(self.masks, 'masks')

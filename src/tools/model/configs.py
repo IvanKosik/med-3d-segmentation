@@ -5,7 +5,6 @@ import cv2
 from segmentation_models import Unet
 from segmentation_models import losses as sm_losses
 
-
 PROJECT_DIR = Path('../../../')
 OBJECT_NAME = 'ms-lesions'
 ### DATA_DIR = PROJECT_DIR / 'data' / OBJECT_NAME
@@ -20,10 +19,11 @@ TEST_DATA_CSV_PATH = DATA_CSV_DIR / 'test.csv'
 
 MODEL_ARCHITECTURE = Unet
 BACKBONE = 'densenet201'
-LOSS = sm_losses.bce_dice_loss
-INPUT_SIZE = (256, 256)
-BATCH_SIZE = 17
-SMALL_DESCRIPTION = 'T2_tse_SkipEmptySlices'
+# LOSS = sm_losses.binary_focal_jaccard_loss #binary_focal_dice_loss #bce_dice_loss
+LOSS = sm_losses.bce_dice_loss  ## sm_losses.binary_crossentropy + sm_losses.DiceLoss(smooth=1)
+INPUT_SIZE = (352, 352)
+BATCH_SIZE = 8
+SMALL_DESCRIPTION = 'T2Tse__SkipEmpty__MonitorIOU'
 
 INPUT_CHANNELS = 3
 CLASSES_NUMBER = 1
@@ -37,7 +37,7 @@ AUGMENTATIONS = albumentations.Compose(transforms=[
     albumentations.VerticalFlip(p=0.5),
     # RandomBrightnessContrast(brightness_limit=0.25, contrast_limit=0.25, p=1),
     # RandomGamma(p=1)  # (gamma_limit=(50, 150), p=1)
-    ])
+])
 
 OUTPUT_DIR = PROJECT_DIR / 'output'
 MODELS_DIR = OUTPUT_DIR / 'models' / OBJECT_NAME

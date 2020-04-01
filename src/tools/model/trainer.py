@@ -4,19 +4,17 @@ from pathlib import Path
 import re
 
 import keras
-import keras.models
 import numpy as np
 import pandas as pd
-import segmentation_models.metrics
-import segmentation_models.utils
 import skimage.io
 import skimage.transform
-from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau  ###, TensorBoard
 from segmentation_models import get_preprocessing
+from segmentation_models import losses as sm_losses
+from segmentation_models import metrics as sm_metrics
 
 from tools.model import data_generator, input_preprocessing, configs
 from utils import image as image_utils
-from utils import nifti, debug
+from utils import nifti
 
 
 BACKBONE_INPUT_PREPROCESSING = get_preprocessing(configs.BACKBONE)
@@ -74,20 +72,28 @@ def train():
     model = configs.MODEL_ARCHITECTURE(backbone_name=configs.BACKBONE, input_shape=(None, None, 3),
                                        classes=configs.CLASSES_NUMBER, encoder_weights='imagenet', encoder_freeze=True)
 
-    dice_score = segmentation_models.metrics.f1_score   #####%! dice_score
+    dice_score = sm_metrics.f1_score   #####%! dice_score
 ###    dice_score.__name__ = 'dice_score'
-    model.compile('Adam', loss=configs.LOSS, metrics=[dice_score, segmentation_models.metrics.iou_score])
+    model.compile('Adam', loss=configs.LOSS, metrics=[sm_losses.binary_crossentropy, sm_losses.dice_loss, dice_score,
+                                                      sm_metrics.iou_score])
     model.summary()
 
-    checkpoint = ModelCheckpoint(str(MODEL_PATH), monitor='val_loss', verbose=1, save_best_only=True, mode='min')
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=10, verbose=1, min_lr=1e-6)
-    early_stopping = EarlyStopping(monitor="val_loss", patience=60, mode="min")
-###    tensorboard_callback = TensorBoard(log_dir=str(MODELS_DIR / 'logs' / PARAMS_STR), write_graph=False)
+    monitored_quantity_name = 'val_' + sm_metrics.iou_score.name
+    monitored_quantity_mode = 'max'
+    checkpoint = keras.callbacks.ModelCheckpoint(str(MODEL_PATH), monitor=monitored_quantity_name, verbose=1,
+                                                 save_best_only=True, mode=monitored_quantity_mode)
+    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor=monitored_quantity_name, factor=0.8, patience=10, verbose=1,
+                                                  mode=monitored_quantity_mode, min_lr=1e-6)
+    early_stopping = keras.callbacks.EarlyStopping(monitor=monitored_quantity_name, patience=60,
+                                                   mode=monitored_quantity_mode)
+    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(configs.MODELS_DIR / 'logs' / PARAMS_STR),
+                                                       write_graph=False)
 
-    callbacks = [checkpoint, reduce_lr, early_stopping]###, tensorboard_callback]
+    callbacks = [checkpoint, reduce_lr, early_stopping, tensorboard_callback]
 
     model.fit_generator(generator=train_gen,
                         epochs=100,
+                        verbose=2,
                         callbacks=callbacks,
                         validation_data=valid_gen)
 
@@ -171,14 +177,15 @@ def main():
         # filter_predicate=lambda file_name: re.search('[ _]t2.*tse', file_name, re.IGNORECASE) is not None)
 
     # To test only data generator
-    # test_data_generator_with_prediction()
+    # test_data_generator_with_prediction(number_of_batches_for_prediction=30)
 
     train()
 
     # To test data generator and predictions
     # test_data_generator_with_prediction(
-    #     configs.MODELS_DIR / '2020.02.27-Class1-Unet-densenet201-binary_crossentropy_plus_dice_loss-256x256-Batch17-Air.h5',
-    #     configs.TEST_DATA_CSV_PATH, number_of_batches_for_prediction=5)
+    #     # configs.MODELS_DIR / '2020.03.10-Class1-Unet-efficientnetb7-binary_crossentropy_plus_dice_loss-256x256-Batch8-T2_tse_SkipEmptySlices.h5',
+    #     MODEL_PATH,
+    #     configs.VALID_DATA_CSV_PATH, number_of_batches_for_prediction=30)
 
 
 if __name__ == '__main__':
