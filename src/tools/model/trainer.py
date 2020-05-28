@@ -72,10 +72,8 @@ def train():
     model = configs.MODEL_ARCHITECTURE(backbone_name=configs.BACKBONE, input_shape=(None, None, 3),
                                        classes=configs.CLASSES_NUMBER, encoder_weights='imagenet', encoder_freeze=True)
 
-    dice_score = sm_metrics.f1_score   #####%! dice_score
-###    dice_score.__name__ = 'dice_score'
     model.compile(keras.optimizers.Adam(learning_rate=1.3e-3), loss=configs.LOSS,
-                  metrics=[sm_losses.binary_crossentropy, sm_losses.JaccardLoss(per_image=True), #dice_score,
+                  metrics=[sm_losses.binary_crossentropy, sm_losses.JaccardLoss(per_image=True),
                            sm_metrics.IOUScore(threshold=0.5, per_image=True)])
     model.summary(line_length=150)
 
@@ -93,7 +91,7 @@ def train():
     callbacks = [checkpoint, reduce_lr, early_stopping, tensorboard_callback]
 
     model.fit_generator(generator=train_gen,
-                        epochs=150,
+                        epochs=configs.EPOCHS,
                         verbose=2,
                         callbacks=callbacks,
                         validation_data=valid_gen)
