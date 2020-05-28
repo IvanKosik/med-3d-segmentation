@@ -14,7 +14,7 @@ from segmentation_models import metrics as sm_metrics
 
 from tools.model import data_generator, input_preprocessing, configs
 from utils import image as image_utils
-from utils import nifti
+from utils import nifti, debug
 
 
 BACKBONE_INPUT_PREPROCESSING = get_preprocessing(configs.BACKBONE)
@@ -74,15 +74,16 @@ def train():
 
     dice_score = sm_metrics.f1_score   #####%! dice_score
 ###    dice_score.__name__ = 'dice_score'
-    model.compile('Adam', loss=configs.LOSS, metrics=[sm_losses.binary_crossentropy, sm_losses.dice_loss, dice_score,
-                                                      sm_metrics.iou_score])
-    model.summary()
+    model.compile(keras.optimizers.Adam(learning_rate=1.3e-3), loss=configs.LOSS,
+                  metrics=[sm_losses.binary_crossentropy, sm_losses.JaccardLoss(per_image=True), #dice_score,
+                           sm_metrics.IOUScore(threshold=0.5, per_image=True)])
+    model.summary(line_length=150)
 
     monitored_quantity_name = 'val_' + sm_metrics.iou_score.name
     monitored_quantity_mode = 'max'
     checkpoint = keras.callbacks.ModelCheckpoint(str(MODEL_PATH), monitor=monitored_quantity_name, verbose=1,
                                                  save_best_only=True, mode=monitored_quantity_mode)
-    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor=monitored_quantity_name, factor=0.8, patience=10, verbose=1,
+    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor=monitored_quantity_name, factor=0.8, patience=6, verbose=1,
                                                   mode=monitored_quantity_mode, min_lr=1e-6)
     early_stopping = keras.callbacks.EarlyStopping(monitor=monitored_quantity_name, patience=60,
                                                    mode=monitored_quantity_mode)
@@ -92,7 +93,7 @@ def train():
     callbacks = [checkpoint, reduce_lr, early_stopping, tensorboard_callback]
 
     model.fit_generator(generator=train_gen,
-                        epochs=100,
+                        epochs=150,
                         verbose=2,
                         callbacks=callbacks,
                         validation_data=valid_gen)
@@ -171,20 +172,41 @@ def generate_train_valid_csv(all_series_dir: Path, masks_dir: Path,
     valid_data_frame.to_csv(str(valid_csv_path), index=False)
 
 
+def test_on_image():
+    image = skimage.io.imread(r'D:\Temp\model_rotate_test\rotate\slices0png.png', as_gray=True)
+
+    batch_image = np.zeros((configs.BATCH_SIZE, *configs.INPUT_SIZE, configs.INPUT_CHANNELS))
+
+    image = INPUT_PREPROCESSOR.preprocess_image(image)[0]
+    image = image * 255
+    image = np.stack((image,) * INPUT_PREPROCESSOR.image_input_channels, axis=-1)
+
+    batch_image[0, ...] = image
+    batch_image = INPUT_PREPROCESSOR.backbone_input_preprocessing(batch_image)
+
+    model = keras.models.load_model(r'D:\Projects\med-3d-segmentation\output\models\paranasal-sinuses\2020.05.15-Class1-Unet-densenet201-binary_crossentropy_plus_jaccard_loss-352x352-Batch8-BothClasses-Empty_1-Rotate90.h5', compile=False)
+    predicted_batch = model.predict(batch_image)
+
+    predicted_mask = predicted_batch[0]
+    predicted_mask = np.stack((np.squeeze(predicted_mask),) * 3, axis=-1)
+    skimage.io.imsave(r'D:\Temp\model_rotate_test\rotate\slices0png_PREDICTED.png', predicted_mask * 255)
+
+
 def main():
     # generate_train_valid_csv(
     #     configs.SERIES_DIR, configs.MASKS_DIR, configs.TRAIN_DATA_CSV_PATH, configs.VALID_DATA_CSV_PATH)
         # filter_predicate=lambda file_name: re.search('[ _]t2.*tse', file_name, re.IGNORECASE) is not None)
 
     # To test only data generator
-    # test_data_generator_with_prediction(number_of_batches_for_prediction=30)
+    # test_data_generator_with_prediction(number_of_batches_for_prediction=10)
 
     train()
+    # test_on_image()
 
     # To test data generator and predictions
     # test_data_generator_with_prediction(
-    #     # configs.MODELS_DIR / '2020.03.10-Class1-Unet-efficientnetb7-binary_crossentropy_plus_dice_loss-256x256-Batch8-T2_tse_SkipEmptySlices.h5',
-    #     MODEL_PATH,
+    #     configs.MODELS_DIR / '2020.04.04-Class1-Unet-densenet201-binary_focal_loss_plus_jaccard_loss-352x352-Batch8-BothClasses-Empty_1.h5',
+    #     # MODEL_PATH,
     #     configs.VALID_DATA_CSV_PATH, number_of_batches_for_prediction=30)
 
 

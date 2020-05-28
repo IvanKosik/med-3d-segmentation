@@ -15,6 +15,7 @@ class InputPreprocessor:
         self.backbone_input_preprocessing = backbone_input_preprocessing
 
     def preprocess_image(self, image, is_mask: bool = False, axis_pads: tuple = None):
+        '''
         if axis_pads is None:
             # Add zero-paddings to make square image (original image will be in the center of paddings)
             max_shape = max(image.shape)
@@ -26,6 +27,7 @@ class InputPreprocessor:
             axis_pads = tuple(zip(axis_before_pads, axis_after_pads))
 
         image = np.pad(image, axis_pads, mode='constant')
+        '''
 
         image = skimage.transform.resize(image, self.image_input_size, order=3, anti_aliasing=True)  # preserve_range=True)
 

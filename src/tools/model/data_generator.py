@@ -43,6 +43,7 @@ class DataGenerator(keras.utils.Sequence):
 
             mask = nifti.read_image(self.masks_path / nifti_name)
             mask[mask != 1] = 0                                       ################# FOR 1 CLASS
+###            mask[mask != 0] = 1        #### Combine all classes into one
 
             for slice_number in range(series.shape[2]):
                 mask_slice = mask[..., slice_number]
@@ -64,7 +65,7 @@ class DataGenerator(keras.utils.Sequence):
               f'\n\timages with masks: {len(self.images)}'
               f'\n\timages with empty masks: {len(images_with_empty_masks)}')
 
-        f = 0  ###  0.1
+        f = 1  ###  0.1
         selected_number_of_images_with_empty_masks = min(round(f * len(self.images)), len(images_with_empty_masks))
         if selected_number_of_images_with_empty_masks > 0:
             random.seed(999)  # use the same images every time to easier compare different models (train on the same images)
@@ -122,6 +123,7 @@ class DataGenerator(keras.utils.Sequence):
             # batch_mask[item_number, ..., 2][np.where(augmented_mask == 6)] = 1
 
         batch_image = self.input_preprocessor.backbone_input_preprocessing(batch_image)
+
         return batch_image, batch_mask
 
     def on_epoch_end(self):
